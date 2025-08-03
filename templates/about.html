@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Zouk Motion</title>
+    <title>Pricing & Plans | Zouk Motion</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
@@ -17,26 +17,16 @@
                     <li><a href="events.html">Events</a></li>
                     <li><a href="{{ url_for('pricing') }}">Pricing & Plans</a></li>
                     <li><a href="contact.html">Contact Us</a></li>
-                    
-                    {% if session.get('username') %}
-                        <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
-                        <li><a href="{{ url_for('logout') }}">Logout</a></li>
-                        <li><span style="color: #aaa;">Welcome, {{ session['username'] }}</span></li>
-                    {% else %}
-                        <li><a href="{{ url_for('login') }}">Login</a></li>
-                        <li><a href="{{ url_for('signup') }}">Sign Up</a></li>
-                    {% endif %}
                 </ul>
             </div>
         </nav>
-        <h1>Welcome to Zouk Motion</h1>
+        <h1>Pricing & Plans</h1>
     </header>
+
     <main>
-        <h2>Move Better</h2>
-        <h2>Dance Better</h2>
-        <h2>Have More Fun</h2>
-        <p>Discover the best of Zouk, your go-to destination for music, dance, and culture.</p>
+        
     </main>
+
     <footer>
         <p>&copy; 2025 Deboshree & Zouk Motion. Content and design are protected.</p>
     </footer>

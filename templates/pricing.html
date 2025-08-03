@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pricing & Plans | Zouk Motion</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="nav-container">
+                <ul class="top-nav">
+                    <li><a href="{{ url_for('home') }}">Home</a></li>
+                    <li><a href="{{ url_for('about') }}">About Us</a></li>
+                    <li><a href="timetable.html">Timetable</a></li>
+                    <li><a href="events.html">Events</a></li>
+                    <li><a href="{{ url_for('pricing') }}">Pricing & Plans</a></li>
+                    <li><a href="contact.html">Contact Us</a></li>
+                </ul>
+            </div>
+        </nav>
+        <h1>Pricing & Plans</h1>
+    </header>
+
+    <main>
+        <section class="pricing-section">
+            <div class="pricing-card">
+                <h2>Drop-In Pass</h2>
+                <p>Single Drop-In</p>
+                <p class="price">$25</p>
+                <button>Buy Now</button>
+            </div>
+
+            <div class="pricing-card">
+                <h2>10-Class Pack</h2>
+                <p>Save when you buy in bulk!</p>
+                <p class="price">$200</p>
+                <button>Buy Now</button>
+            </div>
+
+            <div class="pricing-card">
+                <h2>Trial Pass</h2>
+                <p>Pay as you go</p>
+                <p class="price">$22</p>
+                <button>Buy Now</button>
+            </div>
+            <div class="pricing-card">
+                <h2>Private Lesson Single</h2>
+                <p>Pay as you go</p>
+                <p class="price">$60</p>
+                <button>Buy Now</button>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Deboshree & Zouk Motion. Content and design are protected.</p>
+    </footer>
+</body>
+</html>
