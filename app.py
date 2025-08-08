@@ -99,12 +99,19 @@ def dashboard():
         flash('Please log in first.')
         return redirect(url_for('login'))
 
-    if session['username'] == "debo_da_zouker":  # Admin sees all purchases
-        purchases = Purchase.query.order_by(Purchase.timestamp.desc()).all()
+    # Example check by email or username:
+    admin_email = "debo_da_zouker"
+    is_admin = (session.get('username') == admin_email)
+    print(f"session.get('username')={session.get('username')} and admin email = {admin_email}" )
+    print(f"Is admin: {is_admin}")
+
+    if is_admin:
+        users = User.query.order_by(User.id).all()
+        return render_template('dashboard.html', username=session['username'], users=users, is_admin=True)
     else:
         purchases = Purchase.query.filter_by(user_id=session['user_id']).order_by(Purchase.timestamp.desc()).all()
-
-    return render_template('dashboard.html', username=session['username'], purchases=purchases)
+        return render_template('dashboard.html', username=session['username'], purchases=purchases, is_admin=False)
+    
 
 @app.route('/logout')
 def logout():
@@ -154,41 +161,15 @@ def confirm_purchase():
     return render_template('confirm_purchase.html', plan_name=plan_name)
 
 
-# Edit user GET & POST
-@app.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
-def edit_user(user_id):
-    if 'username' not in session or session['username'] != "debo_da_zouker":
+@app.route('/admin/users')
+def admin_users():
+    if 'username' not in session or session['username'] != 'debo_da_zouker':
         flash("Unauthorized access.")
         return redirect(url_for('login'))
 
-    user = User.query.get_or_404(user_id)
+    users = User.query.all()  # Because of relationship, user.purchases will work
+    return render_template('admin_users.html', users=users)
 
-    if request.method == 'POST':
-        name = request.form.get('name')
-        email = request.form.get('email')
-
-        # Basic validation (you can add more)
-        if not name or not email:
-            flash("Name and Email cannot be empty.")
-            return redirect(url_for('edit_user', user_id=user_id))
-
-        # Check if new email is unique
-        existing_user = User.query.filter(User.email == email, User.id != user_id).first()
-        if existing_user:
-            flash("Email already in use by another user.")
-            return redirect(url_for('edit_user', user_id=user_id))
-
-        user.name = name
-        user.email = email
-        db.session.commit()
-        flash("User updated successfully.")
-        return redirect(url_for('admin_users'))
-
-    # GET request renders form
-    return render_template('edit_user.html', user=user)
-
-
-# Delete user POST
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 def delete_user(user_id):
     if 'username' not in session or session['username'] != "debo_da_zouker":
@@ -196,10 +177,16 @@ def delete_user(user_id):
         return redirect(url_for('login'))
 
     user = User.query.get_or_404(user_id)
+
+    # Optionally delete purchases first if cascade is not set
+    for purchase in user.purchases:
+        db.session.delete(purchase)
     db.session.delete(user)
     db.session.commit()
-    flash("User deleted successfully.")
+    flash("User and their purchases deleted.")
     return redirect(url_for('admin_users'))
+
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
