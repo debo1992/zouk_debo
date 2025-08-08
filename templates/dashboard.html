@@ -8,6 +8,12 @@
     <h1>Welcome, {{ name }}!</h1>
     <p>This is your dashboard.</p>
     <a href="{{ url_for('logout') }}">Logout</a>
+    <h2 class="text-xl font-semibold mb-4">Your Purchases</h2>
+    <ul>
+    {% for purchase in purchases %}
+        <li>{{ purchase.plan_name }} - {{ purchase.timestamp.strftime('%Y-%m-%d %H:%M') }}</li>
+    {% endfor %}
+    </ul>
 </body>
 <footer>
     <p>&copy; 2025 Deboshree & Zouk Motion. Content and design are protected.</p>

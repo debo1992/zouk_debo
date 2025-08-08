@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Needed for flashing messages
@@ -22,6 +23,15 @@ def pricing():
 @app.route('/about')
 def about():
     return render_template('about.html')
+
+
+class Purchase(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    plan_name = db.Column(db.String(100), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('purchases', lazy=True))
 
 
 # Define User table
@@ -85,11 +95,16 @@ def login():
 
 @app.route('/dashboard')
 def dashboard():
-    if 'username' in session:
-        return render_template('dashboard.html', username=session['username'])
-    else:
+    if 'username' not in session:
         flash('Please log in first.')
         return redirect(url_for('login'))
+
+    if session['username'] == "debo_da_zouker":  # Admin sees all purchases
+        purchases = Purchase.query.order_by(Purchase.timestamp.desc()).all()
+    else:
+        purchases = Purchase.query.filter_by(user_id=session['user_id']).order_by(Purchase.timestamp.desc()).all()
+
+    return render_template('dashboard.html', username=session['username'], purchases=purchases)
 
 @app.route('/logout')
 def logout():
@@ -97,6 +112,94 @@ def logout():
     flash('You have been logged out.')
     return redirect(url_for('login'))
 
+
+@app.route('/purchase', methods=['POST'])
+def purchase():
+    if 'user_id' not in session:
+        flash("Please log in to reserve a spot.")
+        return redirect(url_for('login'))
+
+    plan_name = request.form.get('plan_name')
+    if not plan_name:
+        flash("Invalid plan selected.")
+        return redirect(url_for('pricing'))
+
+    session['pending_plan'] = plan_name
+    return redirect(url_for('confirm_purchase'))
+
+@app.route('/confirm_purchase', methods=['GET', 'POST'])
+def confirm_purchase():
+    if 'user_id' not in session:
+        flash("Please log in first.")
+        return redirect(url_for('login'))
+
+    plan_name = session.get('pending_plan')
+    if not plan_name:
+        flash("No plan to confirm.")
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'confirm':
+            new_purchase = Purchase(user_id=session['user_id'], plan_name=plan_name)
+            db.session.add(new_purchase)
+            db.session.commit()
+            flash(f"Purchase confirmed for plan: {plan_name}")
+        else:
+            flash("Purchase canceled.")
+
+        session.pop('pending_plan', None)
+        return redirect(url_for('dashboard'))
+
+    return render_template('confirm_purchase.html', plan_name=plan_name)
+
+
+# Edit user GET & POST
+@app.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
+def edit_user(user_id):
+    if 'username' not in session or session['username'] != "debo_da_zouker":
+        flash("Unauthorized access.")
+        return redirect(url_for('login'))
+
+    user = User.query.get_or_404(user_id)
+
+    if request.method == 'POST':
+        name = request.form.get('name')
+        email = request.form.get('email')
+
+        # Basic validation (you can add more)
+        if not name or not email:
+            flash("Name and Email cannot be empty.")
+            return redirect(url_for('edit_user', user_id=user_id))
+
+        # Check if new email is unique
+        existing_user = User.query.filter(User.email == email, User.id != user_id).first()
+        if existing_user:
+            flash("Email already in use by another user.")
+            return redirect(url_for('edit_user', user_id=user_id))
+
+        user.name = name
+        user.email = email
+        db.session.commit()
+        flash("User updated successfully.")
+        return redirect(url_for('admin_users'))
+
+    # GET request renders form
+    return render_template('edit_user.html', user=user)
+
+
+# Delete user POST
+@app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
+def delete_user(user_id):
+    if 'username' not in session or session['username'] != "debo_da_zouker":
+        flash("Unauthorized access.")
+        return redirect(url_for('login'))
+
+    user = User.query.get_or_404(user_id)
+    db.session.delete(user)
+    db.session.commit()
+    flash("User deleted successfully.")
+    return redirect(url_for('admin_users'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
