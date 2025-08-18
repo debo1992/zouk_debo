@@ -8,6 +8,12 @@ app.secret_key = 'your_secret_key'  # Needed for flashing messages
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 
 db = SQLAlchemy(app)
+PLAN_CREDITS = {
+    "Zouk Lover": 12,       # up to 12 classes in 4 weeks
+    "Zouk Fan": 12,         # 12 classes, flexible 8 weeks
+    "Zouk Admirer": 6,      # 6 classes
+    "Casual Drop In": 1,    # 1 class
+}
 
 
 users = {}
@@ -40,6 +46,7 @@ class User(db.Model):
     name = db.Column(db.String(150))
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
+    remaining_classes = db.Column(db.Integer, default=0)
 
 # Create DB tables if they don't exist
 with app.app_context():
@@ -102,15 +109,14 @@ def dashboard():
     # Example check by email or username:
     admin_email = "debo_da_zouker"
     is_admin = (session.get('username') == admin_email)
-    print(f"session.get('username')={session.get('username')} and admin email = {admin_email}" )
-    print(f"Is admin: {is_admin}")
 
     if is_admin:
         users = User.query.order_by(User.id).all()
         return render_template('dashboard.html', username=session['username'], users=users, is_admin=True)
     else:
+        user = User.query.get(session['user_id'])
         purchases = Purchase.query.filter_by(user_id=session['user_id']).order_by(Purchase.timestamp.desc()).all()
-        return render_template('dashboard.html', username=session['username'], purchases=purchases, is_admin=False)
+        return render_template('dashboard.html', username=session['username'], purchases=purchases, user = user, is_admin=False)
     
 
 @app.route('/logout')
@@ -150,6 +156,11 @@ def confirm_purchase():
         if action == 'confirm':
             new_purchase = Purchase(user_id=session['user_id'], plan_name=plan_name)
             db.session.add(new_purchase)
+            credits = PLAN_CREDITS.get(plan_name, 0)
+            print(f"Adding {credits} credits for plan: {plan_name}")
+            user = User.query.get(session['user_id'])
+            if user:
+                user.remaining_classes = (user.remaining_classes or 0) + credits
             db.session.commit()
             flash(f"Purchase confirmed for plan: {plan_name}")
         else:
@@ -191,7 +202,32 @@ def delete_purchase(purchase_id):
     flash("Purchase deleted successfully.")
     return redirect(url_for('dashboard'))
 
+@app.route('/admin/users/add_class/<int:user_id>', methods=['POST'])
+def add_class_credit(user_id):
+    if 'username' not in session or session['username'] != "debo_da_zouker":
+        flash("Unauthorized access.")
+        return redirect(url_for('login'))
 
+    user = User.query.get_or_404(user_id)
+    user.remaining_classes += 1
+    db.session.commit()
+    flash(f"Added 1 class credit to {user.name}. Total now: {user.remaining_classes}")
+    return redirect(url_for('dashboard'))
+
+@app.route('/admin/users/remove_class/<int:user_id>', methods=['POST'])
+def remove_class_credit(user_id):
+    if 'username' not in session or session['username'] != "debo_da_zouker":
+        flash("Unauthorized access.")
+        return redirect(url_for('login'))
+
+    user = User.query.get_or_404(user_id)
+    if user.remaining_classes > 0:
+        user.remaining_classes -= 1
+        db.session.commit()
+        flash(f"Removed 1 class credit from {user.name}. Remaining: {user.remaining_classes}")
+    else:
+        flash(f"{user.name} has no remaining classes to remove.")
+    return redirect(url_for('dashboard'))
 
 
 if __name__ == '__main__':
