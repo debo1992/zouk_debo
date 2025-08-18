@@ -116,7 +116,7 @@ def dashboard():
     else:
         user = User.query.get(session['user_id'])
         purchases = Purchase.query.filter_by(user_id=session['user_id']).order_by(Purchase.timestamp.desc()).all()
-        return render_template('dashboard.html', username=session['username'], purchases=purchases, user = user, is_admin=False)
+        return render_template('dashboard.html', username=session['username'], purchases=purchases, is_admin=False, user = user)
     
 
 @app.route('/logout')
