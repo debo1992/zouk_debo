@@ -160,16 +160,6 @@ def confirm_purchase():
 
     return render_template('confirm_purchase.html', plan_name=plan_name)
 
-
-@app.route('/admin/users')
-def admin_users():
-    if 'username' not in session or session['username'] != 'debo_da_zouker':
-        flash("Unauthorized access.")
-        return redirect(url_for('login'))
-
-    users = User.query.all()  # Because of relationship, user.purchases will work
-    return render_template('admin_users.html', users=users)
-
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 def delete_user(user_id):
     if 'username' not in session or session['username'] != "debo_da_zouker":
@@ -184,7 +174,7 @@ def delete_user(user_id):
     db.session.delete(user)
     db.session.commit()
     flash("User and their purchases deleted.")
-    return redirect(url_for('admin_users'))
+    return redirect(url_for('dashboard'))
 
 
 
