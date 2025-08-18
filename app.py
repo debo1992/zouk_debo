@@ -177,6 +177,22 @@ def delete_user(user_id):
     return redirect(url_for('dashboard'))
 
 
+@app.route('/admin/purchases/delete/<int:purchase_id>', methods=['POST'])
+def delete_purchase(purchase_id):
+    # ✅ Admin-only access
+    if 'username' not in session or session['username'] != "debo_da_zouker":
+        flash("Unauthorized access.")
+        return redirect(url_for('login'))
+
+    purchase = Purchase.query.get_or_404(purchase_id)
+
+    db.session.delete(purchase)
+    db.session.commit()
+    flash("Purchase deleted successfully.")
+    return redirect(url_for('dashboard'))
+
+
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
