@@ -19,7 +19,7 @@
                 <ul class="top-nav">
                     <li><a href="{{ url_for('dashboard') }}">Home</a></li>
                     <li><a href="{{ url_for('about') }}">About Us</a></li>
-                    <li><a href="timetable.html">Timetable</a></li>
+                    <li><a href="{{ url_for('timetable') }}">Timetable</a></li>
                     <li><a href="events.html">Events</a></li>
                     <li><a href="{{ url_for('pricing') }}">Pricing & Plans</a></li>
                     <li><a href="contact.html">Contact Us</a></li>
@@ -105,7 +105,9 @@
             {% endif %}
         </ul>
         <h2>You've got {{user.remaining_classes}} remaining classes</h2>
-    {% endif %}
+
+        
+        {% endif %}
 </body>
 <footer>
     <p>&copy; 2025 Deboshree & Zouk Motion. Content and design are protected.</p>

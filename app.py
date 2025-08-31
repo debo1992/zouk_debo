@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Needed for flashing messages
@@ -117,7 +117,33 @@ def dashboard():
         user = User.query.get(session['user_id'])
         purchases = Purchase.query.filter_by(user_id=session['user_id']).order_by(Purchase.timestamp.desc()).all()
         return render_template('dashboard.html', username=session['username'], purchases=purchases, is_admin=False, user = user)
-    
+
+def generate_wednesdays():
+    start_date = datetime(2025, 9, 6)
+    # adjust to first Wednesday
+    while start_date.weekday() != 2:  # Monday=0, Tuesday=1, Wednesday=2
+        start_date += timedelta(days=1)
+    return [(start_date + timedelta(weeks=i)).strftime("%Y-%m-%d") for i in range(4)]
+
+@app.route("/timetable")
+def timetable():
+    # assume current user stored in session["user_id"] or similar
+    user = User.query.get(session['user_id'])  # your DB function to fetch logged-in user
+    dates = generate_wednesdays()
+    return render_template("timetable.html", dates=dates, user=user)
+
+@app.route("/book/<date>/<time>", methods=["POST"])
+def book(date, time):
+    user = User.query.get(session['user_id'])
+
+    if user.remaining_classes > 0:
+        # deduct one
+        user.remaining_classes -= 1
+        db.session.commit()
+
+        # you can also save a booking record in a `Bookings` table here
+
+    return redirect(url_for("timetable"))
 
 @app.route('/logout')
 def logout():
