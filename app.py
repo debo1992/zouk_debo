@@ -15,7 +15,6 @@ PLAN_CREDITS = {
     "Casual Drop In": 1,    # 1 class
 }
 
-
 users = {}
 
 @app.route('/')
@@ -30,6 +29,13 @@ def pricing():
 def about():
     return render_template('about.html')
 
+class Booking(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.String(20), nullable=False)
+    time = db.Column(db.String(10), nullable=False)
+
+    user = db.relationship('User', backref=db.backref('bookings', lazy=True))
 
 class Purchase(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -123,27 +129,58 @@ def generate_wednesdays():
     # adjust to first Wednesday
     while start_date.weekday() != 2:  # Monday=0, Tuesday=1, Wednesday=2
         start_date += timedelta(days=1)
-    return [(start_date + timedelta(weeks=i)).strftime("%Y-%m-%d") for i in range(4)]
+    return [(start_date + timedelta(weeks=i)).strftime("%Y-%m-%d") for i in range(24)]
+
 
 @app.route("/timetable")
 def timetable():
-    # assume current user stored in session["user_id"] or similar
-    user = User.query.get(session['user_id'])  # your DB function to fetch logged-in user
+    user = User.query.get(session["user_id"])
     dates = generate_wednesdays()
-    return render_template("timetable.html", dates=dates, user=user)
+    if "user_id" not in session:
+        flash("Please log in first.")
+        return redirect(url_for("login"))
 
-@app.route("/book/<date>/<time>", methods=["POST"])
-def book(date, time):
-    user = User.query.get(session['user_id'])
+    # Get this user's bookings from DB
+    user_bookings = {(b.date, b.time) for b in user.bookings}
 
+    return render_template(
+        "timetable.html",
+        dates=dates,
+        bookings=user_bookings,
+        remaining_classes=user.remaining_classes
+    )
+
+
+@app.route("/book", methods=["POST"])
+def book_class():
+    if "user_id" not in session:
+        flash("Please log in first.")
+        return redirect(url_for("login"))
+
+    user = User.query.get(session["user_id"])
+    date = request.form["date"]
+    time = request.form["time"]
+
+    # Prevent duplicate booking
+    existing = Booking.query.filter_by(user_id=user.id, date=date, time=time).first()
+    if existing:
+        flash("You already booked this class.")
+        return redirect(url_for("timetable"))
+
+    # Only allow booking if credits remain
     if user.remaining_classes > 0:
-        # deduct one
+        new_booking = Booking(user_id=user.id, date=date, time=time)
+        db.session.add(new_booking)
         user.remaining_classes -= 1
         db.session.commit()
-
-        # you can also save a booking record in a `Bookings` table here
+        flash(f"Booked {date} at {time}. Remaining credits: {user.remaining_classes}")
+    else:
+        flash("No remaining classes to book.")
 
     return redirect(url_for("timetable"))
+
+
+
 
 @app.route('/logout')
 def logout():
