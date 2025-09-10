@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo 
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Needed for flashing messages
@@ -14,6 +15,9 @@ PLAN_CREDITS = {
     "Zouk Admirer": 6,      # 6 classes
     "Casual Drop In": 1,    # 1 class
 }
+CANCEL_CUTOFF_HOURS = 1
+TZ = ZoneInfo("Australia/Sydney")
+SLOTS = ["19:00", "20:00", "21:00"]
 
 users = {}
 
@@ -140,15 +144,32 @@ def timetable():
         flash("Please log in first.")
         return redirect(url_for("login"))
 
+    now = datetime.now(TZ)
+
     # Get this user's bookings from DB
     user_bookings = {(b.date, b.time) for b in user.bookings}
+    cancellable = {}
+    for date in dates:
+        for slot in SLOTS:
+            key = f"{date} {slot}"
+            try:
+                class_dt = datetime.strptime(key, "%Y-%m-%d %H:%M").replace(tzinfo=TZ)
+            except ValueError:
+                # If date/time format is unexpected, mark non-cancellable
+                cancellable[key] = False
+                continue
+            cancellable[key] = (class_dt - now) > timedelta(hours=CANCEL_CUTOFF_HOURS)
 
     return render_template(
         "timetable.html",
         dates=dates,
         bookings=user_bookings,
-        remaining_classes=user.remaining_classes
+        remaining_classes=user.remaining_classes,
+        cancellable=cancellable,
+        cancel_cutoff_hours=CANCEL_CUTOFF_HOURS
     )
+
+
 
 
 @app.route("/book", methods=["POST"])
@@ -158,8 +179,23 @@ def book_class():
         return redirect(url_for("login"))
 
     user = User.query.get(session["user_id"])
-    date = request.form["date"]
-    time = request.form["time"]
+    date = request.form.get("date")
+    time = request.form.get("time")
+    if not date or not time:
+        flash("Missing date or time.")
+        return redirect(url_for("timetable"))
+
+    # Parse class datetime and prevent booking past classes
+    try:
+        class_dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M").replace(tzinfo=TZ)
+    except ValueError:
+        flash("Invalid date/time format.")
+        return redirect(url_for("timetable"))
+
+    now = datetime.now(TZ)
+    if class_dt <= now:
+        flash("Cannot book a class that has already started or is in the past.")
+        return redirect(url_for("timetable"))
 
     # Prevent duplicate booking
     existing = Booking.query.filter_by(user_id=user.id, date=date, time=time).first()
@@ -168,15 +204,53 @@ def book_class():
         return redirect(url_for("timetable"))
 
     # Only allow booking if credits remain
-    if user.remaining_classes > 0:
-        new_booking = Booking(user_id=user.id, date=date, time=time)
-        db.session.add(new_booking)
-        user.remaining_classes -= 1
-        db.session.commit()
-        flash(f"Booked {date} at {time}. Remaining credits: {user.remaining_classes}")
-    else:
+    if user.remaining_classes <= 0:
         flash("No remaining classes to book.")
+        return redirect(url_for("timetable"))
 
+    # Create booking
+    new_booking = Booking(user_id=user.id, date=date, time=time)
+    db.session.add(new_booking)
+    user.remaining_classes -= 1
+    db.session.commit()
+    flash(f"Booked {date} at {time}. Remaining credits: {user.remaining_classes}")
+    return redirect(url_for("timetable"))
+
+
+@app.route("/cancel_class", methods=["POST"])
+def cancel_class():
+    if "user_id" not in session:
+        flash("Please log in first.")
+        return redirect(url_for("login"))
+
+    user = User.query.get(session["user_id"])
+    date = request.form.get("date")
+    time = request.form.get("time")
+    if not date or not time:
+        flash("Missing date or time.")
+        return redirect(url_for("timetable"))
+
+    booking = Booking.query.filter_by(user_id=user.id, date=date, time=time).first()
+    if not booking:
+        flash("Booking not found.")
+        return redirect(url_for("timetable"))
+
+    try:
+        class_dt = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M").replace(tzinfo=TZ)
+    except ValueError:
+        flash("Invalid date/time format.")
+        return redirect(url_for("timetable"))
+
+    now = datetime.now(TZ)
+    if class_dt - now <= timedelta(hours=CANCEL_CUTOFF_HOURS):
+        flash(f"Too late to cancel this class (must cancel at least {CANCEL_CUTOFF_HOURS} hour(s) before start).")
+        return redirect(url_for("timetable"))
+
+    # Delete the booking and refund credit
+    db.session.delete(booking)
+    user.remaining_classes += 1
+    db.session.commit()
+    flash("Booking cancelled. Your credit has been refunded.")
     return redirect(url_for("timetable"))
 
 
@@ -276,6 +350,31 @@ def add_class_credit(user_id):
     db.session.commit()
     flash(f"Added 1 class credit to {user.name}. Total now: {user.remaining_classes}")
     return redirect(url_for('dashboard'))
+
+@app.route("/mybookings")
+def mybookings():
+    if "user_id" not in session:
+        flash("Please log in first.")
+        return redirect(url_for("login"))
+
+    user = User.query.get(session["user_id"])
+    now = datetime.now()
+
+    # Build list of bookings with parsed datetime
+    bookings = []
+    for b in user.bookings:
+        class_datetime = datetime.strptime(f"{b.date} {b.time}", "%Y-%m-%d %H:%M")
+        bookings.append({
+            "date": b.date,
+            "time": b.time,
+            "class_datetime": class_datetime
+        })
+
+    return render_template(
+        "mybookings.html",
+        bookings=bookings,
+        now=now
+    )
 
 @app.route('/admin/users/remove_class/<int:user_id>', methods=['POST'])
 def remove_class_credit(user_id):
